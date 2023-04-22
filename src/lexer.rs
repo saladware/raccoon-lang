@@ -1,8 +1,7 @@
-use std::env::var;
 use std::str::Chars;
 
 #[derive(Debug)]
-enum OperatorToken {
+pub enum OperatorToken {
     Eq,
     Ne,
     Gt,
@@ -29,7 +28,7 @@ enum OperatorToken {
 }
 
 #[derive(Debug)]
-enum BracketToken {
+pub enum BracketToken {
     OpenParenthesis,
     CloseParenthesis,
     OpenSquare,
@@ -39,7 +38,7 @@ enum BracketToken {
 }
 
 #[derive(Debug)]
-enum KeywordToken {
+pub enum KeywordToken {
     For,
     If,
     Else,
@@ -64,9 +63,9 @@ pub enum TokenType {
 
 #[derive(Debug)]
 pub struct Token {
-    line: usize,
-    column: usize,
-    value: TokenType,
+    pub line: usize,
+    pub column: usize,
+    pub value: TokenType,
 }
 
 impl Token {
@@ -112,6 +111,9 @@ impl<'src> Lexer<'src> {
     }
 
     fn set_next_char(&mut self, c: char) {
+        if let Some(value) = self.wait_tokenization {
+            panic!("next char is already defined (char: '{}')", value);
+        }
         self.wait_tokenization = Some(c);
     }
 
@@ -140,7 +142,7 @@ impl<'src> Lexer<'src> {
         return Ok(TokenType::NumberLiteral(token));
     }
 
-    fn tokenize_string(&mut self, value: char) -> Result<TokenType, &'static str> {
+    fn tokenize_string(&mut self, _value: char) -> Result<TokenType, &'static str> {
         let mut token = String::new();
         loop {
             if let Some(c) = self.next_char() {
@@ -150,7 +152,7 @@ impl<'src> Lexer<'src> {
                     token.push(c)
                 }
             } else {
-                return Err("string does not have a closing quote")
+                return Err("string does not have a closing quote");
             }
         }
         return Ok(TokenType::StringLiteral(token));
@@ -160,15 +162,13 @@ impl<'src> Lexer<'src> {
         let mut token = String::from(c);
         loop {
             if let Some(c) = self.next_char() {
-                if !c.is_whitespace() && !c.is_ascii_punctuation() {
+                if !c.is_whitespace() && !c.is_ascii_punctuation() || c == '_' {
                     token.push(c);
-                }
-                else {
+                } else {
                     self.set_next_char(c);
                     break;
                 }
-            }
-            else {
+            } else {
                 break;
             }
         }
@@ -176,26 +176,25 @@ impl<'src> Lexer<'src> {
             "if" => TokenType::Keyword(KeywordToken::If),
             "else" => TokenType::Keyword(KeywordToken::Else),
             "while" => TokenType::Keyword(KeywordToken::While),
+            "for" => TokenType::Keyword(KeywordToken::For),
             "false" => TokenType::Keyword(KeywordToken::False),
             "true" => TokenType::Keyword(KeywordToken::True),
             "null" => TokenType::Keyword(KeywordToken::Null),
             "return" => TokenType::Keyword(KeywordToken::Return),
             _ => TokenType::Identifier(token)
         };
-        return Ok(result)
+        return Ok(result);
     }
 
     fn tokenize_op_with_eq(&mut self, op: OperatorToken, op_eq: OperatorToken) -> TokenType {
         let res = if let Some(value) = self.next_char() {
             if value == '=' {
                 op_eq
-            }
-            else {
+            } else {
                 self.set_next_char(value);
                 op
             }
-        }
-        else {
+        } else {
             op
         };
         TokenType::Operator(res)
@@ -203,6 +202,12 @@ impl<'src> Lexer<'src> {
 
     fn tokenize_operation(&mut self, c: char) -> Result<TokenType, &'static str> {
         return match c {
+            '(' => Ok(TokenType::Bracket(BracketToken::OpenParenthesis)),
+            ')' => Ok(TokenType::Bracket(BracketToken::CloseParenthesis)),
+            '[' => Ok(TokenType::Bracket(BracketToken::OpenSquare)),
+            ']' => Ok(TokenType::Bracket(BracketToken::CloseSquare)),
+            '{' => Ok(TokenType::Bracket(BracketToken::OpenCurly)),
+            '}' => Ok(TokenType::Bracket(BracketToken::CloseCurly)),
             '+' => Ok(self.tokenize_op_with_eq(OperatorToken::Plus, OperatorToken::PlusEquals)),
             '-' => Ok(self.tokenize_op_with_eq(OperatorToken::Minus, OperatorToken::MinusEquals)),
             '*' => Ok(self.tokenize_op_with_eq(OperatorToken::Asterisk, OperatorToken::AsteriskEquals)),
@@ -212,8 +217,35 @@ impl<'src> Lexer<'src> {
             '<' => Ok(self.tokenize_op_with_eq(OperatorToken::Lt, OperatorToken::Le)),
             '!' => Ok(self.tokenize_op_with_eq(OperatorToken::ExclamationMark, OperatorToken::Ne)),
             '=' => Ok(self.tokenize_op_with_eq(OperatorToken::Equals, OperatorToken::Eq)),
+            ',' => Ok(TokenType::Operator(OperatorToken::Comma)),
+            ':' => Ok(TokenType::Operator(OperatorToken::Colon)),
+            '.' => {
+                if let Some(value) = self.next_char() {
+                    if value == '.' {
+                        if let Some(value2) = self.next_char() {
+                            if value2 == '.' {
+                                Ok(TokenType::Operator(OperatorToken::TripleDot))
+                            }
+                            else {
+                                self.set_next_char(value2);
+                                Ok(TokenType::Operator(OperatorToken::DoubleDot))
+                            }
+                        }
+                        else {
+                            Ok(TokenType::Operator(OperatorToken::DoubleDot))
+                        }
+                    }
+                    else {
+                        self.set_next_char(value);
+                        Ok(TokenType::Operator(OperatorToken::Dot))
+                    }
+                }
+                else {
+                    Ok(TokenType::Operator(OperatorToken::Dot))
+                }
+            }
             _ => Err("unknown operation")
-        }
+        };
     }
 
     pub fn tokenize(mut self) -> Vec<Token> {
@@ -225,17 +257,11 @@ impl<'src> Lexer<'src> {
                     '#' => self.tokenize_comment(symbol),
                     '"' => self.tokenize_string(symbol),
                     '\n' | ';' => {
-                        if let Some(Token {value: TokenType::EL, ..}) = self.tokens.last() {
+                        if let Some(Token { value: TokenType::EL, .. }) = self.tokens.last() {
                             continue;
                         }
                         Ok(TokenType::EL)
-                    },
-                    '(' => Ok(TokenType::Bracket(BracketToken::OpenParenthesis)),
-                    ')' => Ok(TokenType::Bracket(BracketToken::CloseParenthesis)),
-                    '[' => Ok(TokenType::Bracket(BracketToken::OpenSquare)),
-                    ']' => Ok(TokenType::Bracket(BracketToken::CloseSquare)),
-                    '{' => Ok(TokenType::Bracket(BracketToken::OpenCurly)),
-                    '}' => Ok(TokenType::Bracket(BracketToken::CloseCurly)),
+                    }
                     d if d.is_ascii_digit() => self.tokenize_number(symbol),
                     space if space.is_ascii_whitespace() => continue,
                     x if x.is_ascii_punctuation() => self.tokenize_operation(symbol),
@@ -243,7 +269,7 @@ impl<'src> Lexer<'src> {
                 };
                 match token {
                     Ok(value) => {
-                        self.tokens.push(Token { value, line: l, column: c })
+                        self.tokens.push(Token::new(value, c, l))
                     }
                     Err(msg) => {
                         eprintln!("Lexer Error: {} (line {}, column {})", msg, l, c);
@@ -252,13 +278,11 @@ impl<'src> Lexer<'src> {
                 }
             } else {
                 match self.tokens.last() {
-                    Some(Token { value: TokenType::EL, ..}) => {},
+                    Some(Token { value: TokenType::EL, .. }) => {}
                     _ => {
-                        self.tokens.push(Token {
-                            line: self.line_counter,
-                            column: self.column_counter,
-                            value: TokenType::EL
-                        })
+                        self.tokens.push(
+                            Token::new(TokenType::EL, self.column_counter, self.line_counter)
+                        );
                     }
                 }
                 return self.tokens;
