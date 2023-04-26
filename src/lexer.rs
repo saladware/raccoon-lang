@@ -143,6 +143,7 @@ impl<'src> Lexer<'src> {
     }
 
     fn tokenize_string(&mut self, _value: char) -> Result<TokenType, &'static str> {
+        // todo: \n \t \\
         let mut token = String::new();
         loop {
             if let Some(c) = self.next_char() {

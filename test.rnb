@@ -1,0 +1,6 @@
+fun main
+    iload 123
+    store wtf
+    abort
+end
+
