@@ -1,9 +1,12 @@
-for tokenize_comment(mut self, c: char) -> Result<TokenType, static str> {
-        let mut token = String::from(c);
-        loop {
-            if let Some(c) = self.next_char() {
-                if c == "\n" { break; } else { token.push(c) }
-            } else { break; }
-        }
-        return Ok(TokenType::Comment(token));
-    }
+fun main() {
+    a = 23 + 7
+    bring a / 6
+}
+
+
+
+
+
+
+
+

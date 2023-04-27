@@ -1,6 +1,10 @@
 fun main
-    iload 123
-    store wtf
-    abort
+    iload 23
+    iload 7
+    add
+    store a
+    nload a
+    iload 6
+    div
+    bring
 end
-
